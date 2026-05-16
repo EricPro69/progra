@@ -1,0 +1,12 @@
+###################
+#-----------------#
+#-----------------#
+#-----------------#
+#-----------------|
+#-----------------#
+#----------------C#
+###################
+
+//la C simboliza un cofre
+hay que añadir spawns random de enemigos
+implementar sistema de combate
