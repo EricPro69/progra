@@ -1,8 +1,11 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <conio.h>  // Para funciones de entrada de teclado
 #include "structures.h"
 #include "map.h"
+#include "combat.h"   // NUEVO: sistema de combate
+
 
 #define MAP_SIZE 7           // Tamaño del mapa
 #define PLAYER_SYMBOL 'P'    // Símbolo para representar al jugador
@@ -25,12 +28,49 @@ int level(void){
     int mapY = 0;
     int continuar = 1;
 
+    // NUEVO: Inicializar jugador con stats base
+    Jugador jugador;
+    inicializarJugador(&jugador);
+
     cargarMapa(mapX, mapY, &mapaActual);
 
     while (continuar) {
         system("cls");
+
+        // NUEVO: Mostrar stats del jugador arriba del mapa
+        printf("HP: %d/%d  |  XP: %.0f  |  Nivel: %d  |  Daño: %d\n",
+               jugador.hp, jugador.hpMax, jugador.xp, jugador.nivel, jugador.dmg);
+
         mostrarMapaConJugador(&mapaActual, playerX, playerY);
         continuar = moverJugador(&playerX, &playerY, &mapaActual);
+
+        // NUEVO: Verificar si el jugador pisó una 'E' (enemigo en el mapa)
+        if (mapaActual.celdas[playerY][playerX] == 'E') {
+            Enemigo enemigo = crearEnemigo(0);  // Tipo 0 = Salchicha Normal
+            iniciarCombate(&jugador, &enemigo);
+
+            // Si el jugador murió, terminar el juego
+            if (jugador.hp <= 0) {
+                printf("\nGame Over. Salchichín no pudo proteger a su familia...\n");
+                _getch();
+                return 0;
+            }
+
+            // Quitar la 'E' del mapa después de derrotar al enemigo
+            mapaActual.celdas[playerY][playerX] = '-';
+        }
+
+        // NUEVO: Verificar si el jugador pisó una 'C' (cofre)
+        if (mapaActual.celdas[playerY][playerX] == 'C') {
+            printf("\n¡Encontraste un cofre!\n");
+            Item itemCofre;
+            strcpy(itemCofre.nombre, "Vendaje de Salchichin");
+            itemCofre.tipo  = 0;   // consumible
+            itemCofre.valor = 30;  // cura 30 HP
+            agregarItem(&jugador, itemCofre);
+            mapaActual.celdas[playerY][playerX] = '-';  // Cofre ya abierto
+            _getch();
+        }
 
         if (continuar == 2) {
             int nextMapX = mapX;

@@ -2,7 +2,7 @@
 #define MAP_H
 #include <stdio.h>
 #include "structures.h"
-
+#include "combat.h"
 // Prototipos de funciones relacionadas con mapas y niveles
 
 int level(void);  // Función principal del nivel
