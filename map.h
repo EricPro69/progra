@@ -5,7 +5,7 @@
 #include "combat.h"
 // Prototipos de funciones relacionadas con mapas y niveles
 
-int level(void);  // Función principal del nivel
+int level(void);  // Funcion principal del nivel
 int cargarMapa(int x, int y, Mapa *mapa);  // Cargar mapa desde archivo
 int moverJugador(int *playerX, int *playerY, Mapa *mapa);  // Procesar movimiento del jugador
 void mostrarMapa(Mapa *mapa);  // Mostrar mapa sin jugador

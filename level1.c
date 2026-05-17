@@ -7,10 +7,10 @@
 #include "combat.h"   // NUEVO: sistema de combate
 
 
-#define MAP_SIZE 7           // Tamaño del mapa
-#define PLAYER_SYMBOL 'P'    // Símbolo para representar al jugador
+#define MAP_SIZE 7           // Tamano del mapa
+#define PLAYER_SYMBOL 'P'    // Simbolo para representar al jugador
 
-// Función principal del primer nivel
+// Funcion principal del primer nivel
 // Presenta la historia y espera entradas del jugador
 int level(void){
     // Mostrar la trama del juego
@@ -38,29 +38,29 @@ int level(void){
         system("cls");
 
         // NUEVO: Mostrar stats del jugador arriba del mapa
-        printf("HP: %d/%d  |  XP: %.0f  |  Nivel: %d  |  Daño: %d\n",
+        printf("HP: %d/%d  |  XP: %.0f  |  Nivel: %d  |  Dano: %d\n",
                jugador.hp, jugador.hpMax, jugador.xp, jugador.nivel, jugador.dmg);
 
         mostrarMapaConJugador(&mapaActual, playerX, playerY);
         continuar = moverJugador(&playerX, &playerY, &mapaActual);
 
-        // NUEVO: Verificar si el jugador pisó una 'E' (enemigo en el mapa)
+        // NUEVO: Verificar si el jugador piso una 'E' (enemigo en el mapa)
         if (mapaActual.celdas[playerY][playerX] == 'E') {
             Enemigo enemigo = crearEnemigo(0);  // Tipo 0 = Salchicha Normal
             iniciarCombate(&jugador, &enemigo);
 
-            // Si el jugador murió, terminar el juego
+            // Si el jugador murio, terminar el juego
             if (jugador.hp <= 0) {
-                printf("\nGame Over. Salchichín no pudo proteger a su familia...\n");
+                printf("\nGame Over. Salchichin no pudo proteger a su familia...\n");
                 _getch();
                 return 0;
             }
 
-            // Quitar la 'E' del mapa después de derrotar al enemigo
+            // Quitar la 'E' del mapa despues de derrotar al enemigo
             mapaActual.celdas[playerY][playerX] = '-';
         }
 
-        // NUEVO: Verificar si el jugador pisó una 'C' (cofre)
+        // NUEVO: Verificar si el jugador piso una 'C' (cofre)
         if (mapaActual.celdas[playerY][playerX] == 'C') {
             printf("\n¡Encontraste un cofre!\n");
             Item itemCofre;
@@ -76,7 +76,7 @@ int level(void){
             int nextMapX = mapX;
             int nextMapY = mapY;
 
-            // Determinar la dirección del cambio de mapa basado en la posición de la puerta
+            // Determinar la direccion del cambio de mapa basado en la posicion de la puerta
             if (playerX == 0) {
                 nextMapX = mapX - 1;
                 playerX = 18;  // Aparecer en el borde derecho del nuevo mapa
@@ -96,8 +96,8 @@ int level(void){
                 mapY = nextMapY;
             } else {
                 // Si no existe el nuevo mapa, mantener al jugador en el mapa actual
-                // Resetear posición si es necesario, pero como está en puerta, quizás no
-                printf("No hay mapa en esa dirección.\n");
+                // Resetear posicion si es necesario, pero como esta en puerta, quizas no
+                printf("No hay mapa en esa direccion.\n");
                 _getch();  // Pausa para mostrar el mensaje
             }
 
@@ -109,8 +109,8 @@ int level(void){
 }
 
 // Carga un mapa desde un archivo de texto
-// Parámetros: x, y (coordenadas del mapa), *mapa (puntero donde guardar datos)
-// Retorna: 1 si el mapa se cargó correctamente, 0 si no existe
+// Parametros: x, y (coordenadas del mapa), *mapa (puntero donde guardar datos)
+// Retorna: 1 si el mapa se cargo correctamente, 0 si no existe
 int cargarMapa(int x, int y, Mapa *mapa) {
     char nombreArchivo[20];  // Nombre del archivo del mapa
     
@@ -126,7 +126,7 @@ int cargarMapa(int x, int y, Mapa *mapa) {
     
     printf("Cargando mapa: %s\n", nombreArchivo);
     
-    // Leer 8 líneas del archivo (dimensión del mapa)
+    // Leer 8 lineas del archivo (dimension del mapa)
     for (int i = 0; i < 8; i++) {
         if (fgets(mapa->celdas[i], sizeof(mapa->celdas[i]), archivo) == NULL) break;
     }
@@ -135,13 +135,13 @@ int cargarMapa(int x, int y, Mapa *mapa) {
     return 1;
 }
 
-// Muestra el mapa en la consola con la posición del jugador
-// Parámetros: *mapa (puntero al mapa), playerX, playerY (posición del jugador)
+// Muestra el mapa en la consola con la posicion del jugador
+// Parametros: *mapa (puntero al mapa), playerX, playerY (posicion del jugador)
 void mostrarMapaConJugador(Mapa *mapa, int playerX, int playerY) {
     // Recorrer cada celda del mapa (8 filas x 19 columnas)
     for (int i = 0; i < 8; i++) {
         for (int j = 0; j < 19; j++) {
-            // Si estamos en la posición del jugador, mostrar 'P'
+            // Si estamos en la posicion del jugador, mostrar 'P'
             if (i == playerY && j == playerX) {
                 printf("P");
             } else {
@@ -153,19 +153,19 @@ void mostrarMapaConJugador(Mapa *mapa, int playerX, int playerY) {
 }
 
 // Procesa el movimiento del jugador basado en la entrada del teclado
-// Parámetros: *playerX, *playerY (posición actual), *mapa (mapa actual)
-// Retorna: 0 si el jugador quiere salir, 1 si continúa en el mismo mapa,
+// Parametros: *playerX, *playerY (posicion actual), *mapa (mapa actual)
+// Retorna: 0 si el jugador quiere salir, 1 si continua en el mismo mapa,
 // 2 si el jugador llega a una puerta y debe cargar el siguiente mapa
 int moverJugador(int *playerX, int *playerY, Mapa *mapa){
     int key = getch();  // Obtener tecla presionada
 
-    int newX = *playerX;  // Nueva posición X
-    int newY = *playerY;  // Nueva posición Y
+    int newX = *playerX;  // Nueva posicion X
+    int newY = *playerY;  // Nueva posicion Y
     int moveDir = 0; // 1=arriba,2=abajo,3=izq,4=der
 
     // Si es una tecla especial (flecha)
     if (key == 0 || key == 224) {
-        key = getch();  // Obtener el código de la flecha
+        key = getch();  // Obtener el codigo de la flecha
         switch (key) {
             case 72:  // Flecha arriba
                 newY--;
@@ -194,7 +194,7 @@ int moverJugador(int *playerX, int *playerY, Mapa *mapa){
         }
     }
 
-    // Verificar si el movimiento es válido (dentro de límites y no hay obstáculo)
+    // Verificar si el movimiento es valido (dentro de limites y no hay obstaculo)
     if (newX >= 0 && newX < 19 && newY >= 0 && newY < 8 && mapa->celdas[newY][newX] != '#') {
         *playerX = newX;
         *playerY = newY;
