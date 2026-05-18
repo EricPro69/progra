@@ -6,384 +6,155 @@
 #include "structures.h"
 #include "combat.h"
 
-// XP necesaria para cada nivel (indice = nivel actual)
 static float xpParaNivel[] = {0, 100, 250, 450, 700, 1000};
 #define NIVEL_MAX 5
 
-// ─────────────────────────────────────────────
-// INICIALIZACION
-// ─────────────────────────────────────────────
+typedef struct {
+    const char *nombre; int hpMax; float xpReward; int dmg; float dodge; int chanceLoot;
+    const char *lootNombre; int lootTipo; int lootValor;
+} DatosEnemigo;
 
-// Inicializa al jugador con stats base y skills vacias
+static DatosEnemigo datosEnemigos[] = {
+    {"Salchicha Normal", 40, 50.0f, 8, 0.05f, 40, "Trozo de Salchicha", 0, 15},
+    {"Salchicha Podrida", 70, 100.0f, 14, 0.10f, 55, "Hueso Resistente", 2, 5},
+    {"Salchicha Mutante Jefe", 130, 250.0f, 22, 0.15f, 100, "Collar de Campeon", 1, 10}};
+
 void inicializarJugador(Jugador *j) {
-    j->hp      = 100;
-    j->hpMax   = 100;
-    j->xp      = 0;
-    j->nivel   = 1;
-    j->dmg     = 15;
-    j->dodge   = 0.10f;  // 10% de esquive base
-    j->inv.cantidad = 0;
-    j->numSkills    = 0;
-
-    // Skills predefinidas que se van desbloqueando por nivel
-    // Se definen todas aqui; desbloquearSkills() las activa segun el nivel
-    Skill todasLasSkills[] = {
-        {"Mordida Fuerte",  "Ataque fuerte, +50% dmg",          2,  8,  0},
-        {"Rodar",           "Esquiva el turno, sin danio",        2,  0,  0},
-        {"Ladrido Feroz",   "Asusta al enemigo, -1 turno suyo",  3,  0,  0},
-        {"Colmillo Rabioso","Ataque brutal, +100% dmg, -5 HP",   4, 15,  5},
-        {"Frenesi Final",   "Ataque x2, cuesta 10 HP propios",   5, 20, 10},
-    };
-
-    // Guardar las skills en el jugador (bloqueadas hasta que suba de nivel)
-    for (int i = 0; i < 5; i++) {
-        j->skills[i] = todasLasSkills[i];
-    }
-
-    srand((unsigned int)time(NULL));  // Semilla para aleatoriedad
+    j->hp = j->hpMax = 100; j->xp = 0; j->nivel = 1; j->dmg = 15; j->dodge = 0.10f;
+    j->inv.cantidad = j->numSkills = 0;
+    Skill todasLasSkills[] = {{"Mordida Fuerte", "Ataque fuerte, +50% dmg", 2, 8, 0},
+        {"Rodar", "Esquiva el turno, sin danio", 3, 0, 0},
+        {"Ladrido Feroz", "Asusta al enemigo, -1 turno suyo", 4, 0, 0},
+        {"Colmillo Rabioso", "Ataque brutal, +100% dmg, -5 HP", 5, 15, 5},
+        {"Frenesi Final", "Ataque x2, cuesta 10 HP propios", 5, 20, 10}};
+    for (int i = 0; i < 5; i++) j->skills[i] = todasLasSkills[i];
 }
 
-// Crea un enemigo segun su tipo
-// tipo 0 = Salchicha Normal, 1 = Salchicha Podrida, 2 = Salchicha Mutante Jefe
 Enemigo crearEnemigo(int tipo) {
-    Enemigo e;
-    e.hp = e.hpMax = 0;
-
-    if (tipo == 0) {
-        strcpy(e.nombre, "Salchicha Normal");
-        e.hp = e.hpMax  = 40;
-        e.xpReward      = 50.0f;
-        e.dmg           = 8;
-        e.dodge         = 0.05f;
-        e.chanceLoot    = 40;  // 40% de soltar item
-        strcpy(e.lootPosible.nombre, "Trozo de Salchicha");
-        e.lootPosible.tipo  = 0;  // consumible
-        e.lootPosible.valor = 15; // cura 15 HP
-    } else if (tipo == 1) {
-        strcpy(e.nombre, "Salchicha Podrida");
-        e.hp = e.hpMax  = 70;
-        e.xpReward      = 100.0f;
-        e.dmg           = 14;
-        e.dodge         = 0.10f;
-        e.chanceLoot    = 55;
-        strcpy(e.lootPosible.nombre, "Hueso Resistente");
-        e.lootPosible.tipo  = 2;  // armadura
-        e.lootPosible.valor = 5;  // reduce 5 de dano recibido (aplicar al usar)
-    } else if (tipo == 2) {
-        strcpy(e.nombre, "Salchicha Mutante Jefe");
-        e.hp = e.hpMax  = 130;
-        e.xpReward      = 250.0f;
-        e.dmg           = 22;
-        e.dodge         = 0.15f;
-        e.chanceLoot    = 100; // siempre suelta loot
-        strcpy(e.lootPosible.nombre, "Collar de Campeon");
-        e.lootPosible.tipo  = 1;  // arma
-        e.lootPosible.valor = 10; // +10 dmg permanente al equipar
-    }
-
-    return e;
+    Enemigo e; memset(&e, 0, sizeof(Enemigo));
+    if (tipo < 0 || tipo > 2) tipo = 0;
+    DatosEnemigo d = datosEnemigos[tipo];
+    strcpy(e.nombre, d.nombre); e.hp = e.hpMax = d.hpMax; e.xpReward = d.xpReward;
+    e.dmg = d.dmg; e.dodge = d.dodge; e.chanceLoot = d.chanceLoot;
+    strcpy(e.lootPosible.nombre, d.lootNombre); e.lootPosible.tipo = d.lootTipo;
+    e.lootPosible.valor = d.lootValor; return e;
 }
 
-// ─────────────────────────────────────────────
-// COMBATE
-// ─────────────────────────────────────────────
-
-// Muestra HP de jugador y enemigo
-void mostrarEstadoCombate(Jugador *j, Enemigo *e) {
-    printf("\n=============================\n");
-    printf("  Salchichin  HP: %d/%d\n", j->hp, j->hpMax);
-    printf("  %s  HP: %d/%d\n", e->nombre, e->hp, e->hpMax);
-    printf("=============================\n");
+void mostrarEstadoCombate(const Jugador *j, const Enemigo *e) {
+    printf("\n=============================\n  Salchichin  HP: %d/%d\n  %s  HP: %d/%d\n=============================\n",
+           j->hp, j->hpMax, e->nombre, e->hp, e->hpMax);
 }
 
-// Calcula dano con +-20% de variacion aleatoria
 int calcularDanio(int dmgBase) {
-    int variacion = dmgBase / 5;  // 20% del dano base
-    return dmgBase - variacion + (rand() % (variacion * 2 + 1));
+    int v = dmgBase / 5; return dmgBase - v + (rand() % (v * 2 + 1));
 }
-
-// Retorna 1 si el personaje esquiva segun su probabilidad
 int intentarEsquivar(float dodge) {
-    float roll = (float)(rand() % 100) / 100.0f;
-    return roll < dodge;
+    return (float)(rand() % 100) / 100.0f < dodge;
 }
 
-// Turno del jugador: menu de opciones
 void turnoJugador(Jugador *j, Enemigo *e) {
-    int opcion = -1;
-    printf("\n¿Que hace Salchichin?\n");
-    printf("  1. Atacar\n");
-    printf("  2. Usar Skill\n");
-    printf("  3. Usar Item\n");
-    printf("  4. Huir\n");
-    printf("Opcion: ");
+    int opcion;
+    printf("\n¿Que hace Salchichin?\n  1. Atacar\n  2. Usar Skill\n  3. Usar Item\n  4. Huir\nOpcion: ");
     scanf("%d", &opcion);
 
     if (opcion == 1) {
-        // Ataque basico
-        if (intentarEsquivar(e->dodge)) {
-            printf("\n%s esquivo el ataque!\n", e->nombre);
-        } else {
-            int danio = calcularDanio(j->dmg);
-            e->hp -= danio;
-            if (e->hp < 0) e->hp = 0;
-            printf("\nSalchichin ataco por %d de danio!\n", danio);
-        }
-
-    } else if (opcion == 2) {
-        // Usar skill
-        if (j->numSkills == 0) {
-            printf("\nNo tienes skills desbloqueadas todavia.\n");
-            return;
-        }
+        if (intentarEsquivar(e->dodge)) printf("\n%s esquivo el ataque!\n", e->nombre);
+        else { int d = calcularDanio(j->dmg); if ((e->hp -= d) < 0) e->hp = 0; printf("\nSalchichin ataco por %d de danio!\n", d); }
+    }
+    else if (opcion == 2) {
+        if (j->numSkills == 0) { printf("\nNo tienes skills desbloqueadas.\n"); return; }
         printf("\nSkills disponibles:\n");
-        for (int i = 0; i < j->numSkills; i++) {
-            printf("  %d. %s — %s\n", i + 1, j->skills[i].nombre, j->skills[i].desc);
-        }
-        printf("Elige skill (0 para cancelar): ");
-        int sk = -1;
-        scanf("%d", &sk);
-        if (sk >= 1 && sk <= j->numSkills) {
-            usarSkill(j, e, sk - 1);
-        } else {
-            printf("Cancelado.\n");
-        }
-
-    } else if (opcion == 3) {
-        // Usar item del inventario
-        if (j->inv.cantidad == 0) {
-            printf("\nNo tienes items.\n");
-            return;
-        }
-        mostrarInventario(j);
-        printf("Elige item (0 para cancelar): ");
-        int it = -1;
-        scanf("%d", &it);
-        if (it >= 1 && it <= j->inv.cantidad) {
-            usarItem(j, it - 1);
-        } else {
-            printf("Cancelado.\n");
-        }
-
-    } else if (opcion == 4) {
-        // Huir: 50% de probabilidad
-        int roll = rand() % 100;
-        if (roll < 50) {
-            printf("\nSalchichin escapo!\n");
-            e->hp = -1;  // Senal para terminar combate sin matar al enemigo
-        } else {
-            printf("\nNo pudo escapar!\n");
-        }
-    } else {
-        printf("\nOpcion invalida. Se pierde el turno.\n");
+        for (int i = 0; i < j->numSkills; i++) printf("  %d. %s — %s\n", i + 1, j->skills[i].nombre, j->skills[i].desc);
+        int sk; printf("Elige skill (0 para cancelar): "); scanf("%d", &sk);
+        if (sk >= 1 && sk <= j->numSkills) usarSkill(j, e, sk - 1); else printf("Cancelado.\n");
     }
+    else if (opcion == 3) {
+        if (j->inv.cantidad == 0) { printf("\nNo tienes items.\n"); return; }
+        mostrarInventario(j); int it; printf("Elige item (0 para cancelar): "); scanf("%d", &it);
+        if (it >= 1 && it <= j->inv.cantidad) usarItem(j, it - 1); else printf("Cancelado.\n");
+    }
+    else if (opcion == 4) {
+        if ((rand() % 100) < 50) { printf("\nSalchichin escapo!\n"); e->hp = -1; }
+        else printf("\nNo pudo escapar!\n");
+    } else printf("\nOpcion invalida. Turno perdido.\n");
 }
 
-// Turno del enemigo: ataca al jugador
 void turnoEnemigo(Jugador *j, Enemigo *e) {
-    if (e->hp <= 0) return;  // No actua si esta muerto
-
-    if (intentarEsquivar(j->dodge)) {
-        printf("\nSalchichin esquivo el ataque de %s!\n", e->nombre);
-    } else {
-        int danio = calcularDanio(e->dmg);
-        j->hp -= danio;
-        if (j->hp < 0) j->hp = 0;
-        printf("\n%s ataco a Salchichin por %d de dano!\n", e->nombre, danio);
-    }
+    if (e->hp <= 0) return;
+    if (intentarEsquivar(j->dodge)) printf("\nSalchichin esquivo el ataque de %s!\n", e->nombre);
+    else { int d = calcularDanio(e->dmg); if ((j->hp -= d) < 0) j->hp = 0; printf("\n%s ataco a Salchichin por %d de dano!\n", e->nombre, d); }
 }
 
-// Loop principal del combate por turnos
-void iniciarCombate(Jugador *j, Enemigo *e) {
-    int huyo = 0;
-    printf("\n¡%s aparecio!\n", e->nombre);
-    _getch();
-
+int iniciarCombate(Jugador *j, Enemigo *e) {
+    printf("\n¡%s aparecio!\n", e->nombre); _getch();
     while (j->hp > 0 && e->hp > 0) {
-        system("cls");
-        mostrarEstadoCombate(j, e);
-        turnoJugador(j, e);
-
-        if (e->hp == -1) {  // Huyo
-            huyo = 1;
-            break;
-        }
-
-        if (e->hp > 0) {
-            turnoEnemigo(j, e);
-            printf("Presiona cualquier tecla...\n");
-            _getch();
-        }
+        system("cls"); mostrarEstadoCombate(j, e); turnoJugador(j, e);
+        if (e->hp == -1) { _getch(); return -1; }
+        if (e->hp > 0) { turnoEnemigo(j, e); printf("Presiona cualquier tecla...\n"); _getch(); }
     }
-
-    if (!huyo) {
-        if (j->hp <= 0) {
-            printf("\nSalchichin fue derrotado...\n");
-            _getch();
-        } else {
-            printf("\n¡Ganaste contra %s!\n", e->nombre);
-            generarLoot(j, e);
-            ganarXP(j, e->xpReward);
-            _getch();
-        }
-    }
+    if (j->hp <= 0) { printf("\nSalchichin fue derrotado...\n"); _getch(); return 0; }
+    printf("\n¡Ganaste contra %s!\n", e->nombre); generarLoot(j, e); ganarXP(j, e->xpReward); _getch(); return 1;
 }
 
 // ─────────────────────────────────────────────
-// PROGRESION
-// ─────────────────────────────────────────────
 
-// Suma XP y verifica si sube de nivel
 void ganarXP(Jugador *j, float xpGanada) {
-    j->xp += xpGanada;
-    printf("\nGanaste %.0f XP! (Total: %.0f)\n", xpGanada, j->xp);
-
-    // Checar subida de nivel
-    while (j->nivel < NIVEL_MAX && j->xp >= xpParaNivel[j->nivel]) {
-        subirNivel(j);
-    }
+    j->xp += xpGanada; printf("\nGanaste %.0f XP! (Total: %.0f)\n", xpGanada, j->xp);
+    while (j->nivel < NIVEL_MAX && j->xp >= xpParaNivel[j->nivel]) subirNivel(j);
 }
 
-// Sube de nivel y mejora stats
 void subirNivel(Jugador *j) {
-    j->nivel++;
-    j->hpMax += 20;
-    j->hp     = j->hpMax;  // Se cura completo al subir de nivel
-    j->dmg   += 5;
-    j->dodge += 0.05f;
-
-    printf("\n¡¡SUBISTE AL NIVEL %d!!\n", j->nivel);
-    printf("  HP Max: %d  |  Dano: %d  |  Esquive: %.0f%%\n",
-           j->hpMax, j->dmg, j->dodge * 100);
-
+    j->nivel++; j->hpMax += 20; j->hp = j->hpMax; j->dmg += 5; j->dodge += 0.05f;
+    printf("\n¡¡SUBISTE AL NIVEL %d!!\n  HP Max: %d  |  Dano: %d  |  Esquive: %.0f%%\n",
+           j->nivel, j->hpMax, j->dmg, (int)(j->dodge * 100));
     desbloquearSkills(j);
 }
 
-// Desbloquea skills segun el nivel actual
 void desbloquearSkills(Jugador *j) {
-    for (int i = 0; i < 5; i++) {
-        if (j->skills[i].nivelReq == j->nivel) {
-            // Mover la skill al arreglo de skills activas
-            j->numSkills++;
-            printf("\n¡SKILL DESBLOQUEADA: %s!\n", j->skills[i].nombre);
-            printf("  %s\n", j->skills[i].desc);
+    for (int i = 0; i < 5; i++)
+        if (j->skills[i].nivelReq == j->nivel && j->numSkills <= i) {
+            j->numSkills++; printf("\n¡SKILL DESBLOQUEADA: %s!\n  %s\n", j->skills[i].nombre, j->skills[i].desc);
         }
-    }
 }
 
-// ─────────────────────────────────────────────
-// INVENTARIO Y LOOT
-// ─────────────────────────────────────────────
-
-// Muestra los items del inventario
-void mostrarInventario(Jugador *j) {
-    if (j->inv.cantidad == 0) {
-        printf("\nInventario vacio.\n");
-        return;
-    }
+void mostrarInventario(const Jugador *j) {
+    if (!j->inv.cantidad) { printf("\nInventario vacio.\n"); return; }
     printf("\n--- Inventario ---\n");
     for (int i = 0; i < j->inv.cantidad; i++) {
-        char *tipo = j->inv.items[i].tipo == 0 ? "Consumible" :
-                     j->inv.items[i].tipo == 1 ? "Arma" : "Armadura";
-        printf("  %d. %s [%s] (valor: %d)\n",
-               i + 1,
-               j->inv.items[i].nombre,
-               tipo,
-               j->inv.items[i].valor);
+        const char *t = j->inv.items[i].tipo == 0 ? "Consumible" : j->inv.items[i].tipo == 1 ? "Arma" : "Armadura";
+        printf("  %d. %s [%s] (valor: %d)\n", i + 1, j->inv.items[i].nombre, t, j->inv.items[i].valor);
     }
 }
 
-// Agrega un item al inventario si hay espacio
 void agregarItem(Jugador *j, Item it) {
-    if (j->inv.cantidad >= 10) {
-        printf("\nInventario lleno! No se puede agregar %s.\n", it.nombre);
-        return;
-    }
-    j->inv.items[j->inv.cantidad] = it;
-    j->inv.cantidad++;
-    printf("\nItem obtenido: %s\n", it.nombre);
+    if (j->inv.cantidad >= 10) { printf("\nInventario lleno! No se puede agregar %s.\n", it.nombre); return; }
+    j->inv.items[j->inv.cantidad] = it; j->inv.cantidad++; printf("\nItem obtenido: %s\n", it.nombre);
 }
 
-// Usa un item del inventario
 void usarItem(Jugador *j, int indice) {
     if (indice < 0 || indice >= j->inv.cantidad) return;
-
     Item it = j->inv.items[indice];
-
-    if (it.tipo == 0) {
-        // Consumible: cura HP
-        j->hp += it.valor;
-        if (j->hp > j->hpMax) j->hp = j->hpMax;
-        printf("\nUsaste %s. HP restaurado: +%d (HP: %d/%d)\n",
-               it.nombre, it.valor, j->hp, j->hpMax);
-    } else if (it.tipo == 1) {
-        // Arma: aumenta dano permanentemente
-        j->dmg += it.valor;
-        printf("\nEquipaste %s. Dano aumentado: +%d (Dano total: %d)\n",
-               it.nombre, it.valor, j->dmg);
-    } else if (it.tipo == 2) {
-        // Armadura: aumenta esquive
-        j->dodge += 0.05f;
-        printf("\nEquipaste %s. Esquive aumentado +5%% (Esquive: %.0f%%)\n",
-               it.nombre, j->dodge * 100);
-    }
-
-    // Quitar el item usado del inventario
-    for (int i = indice; i < j->inv.cantidad - 1; i++) {
-        j->inv.items[i] = j->inv.items[i + 1];
-    }
+    if (it.tipo == 0) { if ((j->hp += it.valor) > j->hpMax) j->hp = j->hpMax;
+        printf("\nUsaste %s. HP: +%d (%d/%d)\n", it.nombre, it.valor, j->hp, j->hpMax); }
+    else if (it.tipo == 1) { j->dmg += it.valor; printf("\nEquipaste %s. Dano: +%d (Total: %d)\n", it.nombre, it.valor, j->dmg); }
+    else { j->dodge += 0.05f; printf("\nEquipaste %s. Esquive: +5%% (Total: %.0f%%)\n", it.nombre, (int)(j->dodge * 100)); }
+    for (int i = indice; i < j->inv.cantidad - 1; i++) j->inv.items[i] = j->inv.items[i + 1];
     j->inv.cantidad--;
 }
 
-// Intenta soltar loot del enemigo derrotado
 void generarLoot(Jugador *j, Enemigo *e) {
-    int roll = rand() % 100;
-    if (roll < e->chanceLoot) {
-        printf("\n¡%s solto: %s!\n", e->nombre, e->lootPosible.nombre);
-        agregarItem(j, e->lootPosible);
-    }
+    if ((rand() % 100) < e->chanceLoot) { printf("\n¡%s solto: %s!\n", e->nombre, e->lootPosible.nombre);
+        agregarItem(j, e->lootPosible); }
 }
 
-// ─────────────────────────────────────────────
-// SKILLS
-// ─────────────────────────────────────────────
-
-// Ejecuta la skill elegida
 void usarSkill(Jugador *j, Enemigo *e, int indice) {
     if (indice < 0 || indice >= j->numSkills) return;
-
     Skill sk = j->skills[indice];
-
-    // Costo en HP propio
-    if (sk.costoHP > 0) {
-        j->hp -= sk.costoHP;
-        if (j->hp < 0) j->hp = 0;
-        printf("\nUsaste HP propio: -%d\n", sk.costoHP);
-    }
-
-    if (sk.dmgExtra > 0) {
-        // Skill de dano
-        int dmgTotal = calcularDanio(j->dmg + sk.dmgExtra);
-        if (intentarEsquivar(e->dodge)) {
-            printf("\n%s esquivo %s!\n", e->nombre, sk.nombre);
-        } else {
-            e->hp -= dmgTotal;
-            if (e->hp < 0) e->hp = 0;
-            printf("\n%s: Salchichin hizo %d de dano!\n", sk.nombre, dmgTotal);
-        }
-    } else {
-        // Skill sin dano directo (Rodar = esquivar turno, Ladrido = skip enemigo)
-        // Rodar: no hace dano, pero el enemigo tampoco atacara este turno
-        // Usamos dmgExtra == 0 y costoHP == 0 como senal de skill defensiva
-        printf("\nSalchichin uso %s!\n", sk.nombre);
-        if (strcmp(sk.nombre, "Rodar") == 0) {
-            printf("Salchichin esquivo el proximo ataque!\n");
-            j->dodge += 0.50f;  // Boost temporal (se puede resetear despues del turno)
-        } else if (strcmp(sk.nombre, "Ladrido Feroz") == 0) {
-            printf("%s esta asustado y pierde su turno!\n", e->nombre);
-            e->dmg = 0;  // Pierde el ataque este turno
-        }
-    }
+    if (sk.costoHP > 0 && j->hp - sk.costoHP <= 0) { printf("\n¡No tienes suficiente HP para usar %s!\n", sk.nombre); return; }
+    if (sk.costoHP > 0) j->hp -= sk.costoHP;
+    int d = calcularDanio(sk.dmgExtra); if ((e->hp -= d) < 0) e->hp = 0;
+    printf("\nSalchichin uso %s por %d de dano!\n", sk.nombre, d);
+    if (sk.costoHP > 0) printf("(HP gastate: %d)\n", sk.costoHP);
 }
 
 //Eric Addai Morales Torres
